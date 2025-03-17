@@ -1,0 +1,53 @@
+name: Fetch Bitcoin Data
+
+on:
+    schedule:
+        - cron: "*/49 * * * *" # Run every 49 minutes
+    workflow_dispatch: # Allow manual triggers
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: checkout repo content
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  ref: main
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: setup python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
+
+            - name: install python packages
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install requests python-dotenv
+
+            - name: execute py script
+              env:
+                  backend_url: ${{ secrets.BACKEND_URL }}
+                  token_endpoint: ${{ secrets.TOKEN_ENDPOINT }}
+                  data_endpoint: ${{ secrets.DATA_ENDPOINT }}
+                  username: ${{ secrets.USERNAME }}
+                  admin_password: ${{ secrets.ADMIN_PASSWORD }}
+              run: python fetchData.py
+
+            - name: commit files
+              if: success()
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+                  git add -A
+                  git diff-index --quiet HEAD || (git commit -a -m "updated logs" --allow-empty)
+
+            - name: push changes
+              if: success()
+              uses: ad-m/github-push-action@v0.6.0
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  branch: main
